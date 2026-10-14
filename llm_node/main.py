@@ -4,6 +4,7 @@ from typing import TypedDict
 import anthropic, pika
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import RetryPolicy
+import db
 
 QUEUE = "applications"
 MODEL = os.environ.get("MODEL", "claude-sonnet-5-5")
@@ -54,10 +55,13 @@ def handle(ch, method, props, body):
     rid = job.pop("request_id")
     try:
         graph = buildGraph()
+        db.set_status(rid, "processing")
         out = graph.invoke(job)
+        db.set_status(rid, "completed", result=out)
         print(json.dumps({"request_id": rid, **out}, indent=2), flush=True)
         ch.basic_ack(delivery_tag=method.delivery_tag)
     except Exception as e:
+        db.set_status(rid, "failed", error=str(e))
         print(f"request {rid} failed {e}", flush=True)
         ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 

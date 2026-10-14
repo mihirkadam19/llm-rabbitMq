@@ -1,14 +1,16 @@
 # ingestion/main.py
 import os, json, uuid
 import pika
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
+import db
 
+db.init_db()
 QUEUE = "applications"
 app = FastAPI()
 
 
-class Application(BaseModel):
+class Tailor(BaseModel):
     job_description: str
     resume_text: str
     tailor_resume: bool = True
@@ -28,8 +30,17 @@ def publish(body: dict):
     conn.close()
 
 
-@app.post("/applications", status_code=202)
-def submit(a: Application):
+@app.post("/tailor", status_code=202)
+def submit(t: Tailor):
     rid = str(uuid.uuid4())
-    publish({"request_id": rid, **a.model_dump()})
+    db.create_request(rid)
+    publish({"request_id": rid, **t.model_dump()})
     return {"request_id": rid}
+
+
+@app.get("/applications/{rid}")
+def status(rid: str):
+    row = db.get_response(rid)
+    if not row:
+        raise HTTPException(404, "request not found")
+    return row
