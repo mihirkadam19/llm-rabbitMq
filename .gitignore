@@ -1,0 +1,20 @@
+# .gitignore
+
+# secrets
+.env
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# personal data
+payload.json
+debug/
+
+# editor
+.vscode/
+
+# os
+.DS_Store
+Thumbs.db
