@@ -4,6 +4,7 @@ from typing import TypedDict
 import anthropic, pika
 from langgraph.graph import StateGraph, START, END
 from langgraph.types import RetryPolicy
+from checkpoint import get_checkpointer, close_checkpointer
 import db
 
 QUEUE = "applications"
@@ -18,6 +19,7 @@ class State(TypedDict, total=False):
     tailor_cover_letter: bool
     tailored_resume: str
     cover_letter: str
+
 
 
 def ask(system, prompt):
@@ -43,10 +45,10 @@ def tailor(s: State):
 def buildGraph():
     s = State
     g = StateGraph(s)
-    g.add_node("tailor", tailor, retry_policy=RetryPolicy(max_attempts=3))
+    g.add_node("tailor", tailor, retry_policy=RetryPolicy(max_attempts=3),)
     g.add_edge(START, "tailor")
     g.add_edge("tailor", END)
-    graph = g.compile()
+    graph = g.compile(checkpointer=get_checkpointer())
     return graph
 
 
@@ -55,8 +57,9 @@ def handle(ch, method, props, body):
     rid = job.pop("request_id")
     try:
         graph = buildGraph()
+        config = dict(configurable=dict(thread_id=rid))
         db.set_status(rid, "processing")
-        out = graph.invoke(job)
+        out = graph.invoke(job, config=config)
         db.set_status(rid, "completed", result=out)
         print(json.dumps({"request_id": rid, **out}, indent=2), flush=True)
         ch.basic_ack(delivery_tag=method.delivery_tag)
