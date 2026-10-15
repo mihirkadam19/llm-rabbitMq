@@ -33,21 +33,44 @@ def ask(system, prompt):
     return "".join(b.text for b in r.content if b.type == "text")
 
 
-def tailor(s: State):
+def tailor_resume(s: State):
     ctx = f"JOB\n{s['job_description']}\n\nRESUME\n{s['resume_text']}"
     out = {}
     if s["tailor_resume"]:
         out["tailored_resume"] = ask("Tailor this resume to the job. Keep facts intact.", ctx)
+    return out
+
+def tailor_cover_letter(s: State):
+    ctx = f"JOB\n{s['job_description']}\n\nRESUME\n{s['resume_text']}"
+    out = {}
     if s["tailor_cover_letter"]:
         out["cover_letter"] = ask("Write a concise, specific cover letter grounded in the resume.", ctx)
     return out
 
+def route_cover_letter(s: State):
+    if s["tailor_cover_letter"]:
+        return "tailor_cover_letter_path"
+    return "end_path"
+
 def buildGraph():
     s = State
     g = StateGraph(s)
-    g.add_node("tailor", tailor, retry_policy=RetryPolicy(max_attempts=3),)
-    g.add_edge(START, "tailor")
-    g.add_edge("tailor", END)
+
+    # nodes
+    g.add_node("resume", tailor_resume, retry_policy=RetryPolicy(max_attempts=3),)
+    g.add_node("cover_letter", tailor_cover_letter, retry_policy=RetryPolicy(max_attempts=3),)
+
+
+    # edges
+    g.add_edge(START, "resume")
+    g.add_conditional_edges(
+        "resume",
+        route_cover_letter,
+        {
+            "tailor_cover_letter_path": "cover_letter",
+            "end_path": END
+        }
+    )
     graph = g.compile(checkpointer=get_checkpointer())
     return graph
 
@@ -66,7 +89,7 @@ def handle(ch, method, props, body):
     except Exception as e:
         db.set_status(rid, "failed", error=str(e))
         print(f"request {rid} failed {e}", flush=True)
-        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
 def connect():
     for _ in range(30):
