@@ -1,4 +1,4 @@
-# Asynchronous LLM Tailoring Platform
+# Asynchronous LLM Orchestration Platform
 
 A backend that takes a job description and a resume and returns a tailored resume and cover letter from an LLM. Model calls are slow, costly and failure prone, so the system accepts work instantly, runs it in the background and lets each tier scale on its own.
 
