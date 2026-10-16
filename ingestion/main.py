@@ -1,46 +1,11 @@
 # ingestion/main.py
-import os, json, uuid
-import pika
-from fastapi import FastAPI, HTTPException, status
-from pydantic import BaseModel
-import db
+import os
+from fastapi import FastAPI
+from controllers import ingestion_router
+from middleware import TenantAuthMiddleware
 
-db.init_db()
-QUEUE = "applications"
+TENANT_NAME = os.environ["TENANT_NAME"]
+
 app = FastAPI()
-
-
-class Tailor(BaseModel):
-    job_description: str
-    resume_text: str
-    tailor_resume: bool = True
-    tailor_cover_letter: bool = True
-
-
-def publish(body: dict):
-    conn = pika.BlockingConnection(pika.URLParameters(os.environ["RABBITMQ_URL"]))
-    ch = conn.channel()
-    ch.queue_declare(queue=QUEUE, durable=True)
-    ch.basic_publish(
-        exchange="",
-        routing_key=QUEUE,
-        body=json.dumps(body),
-        properties=pika.BasicProperties(delivery_mode=2),
-    )
-    conn.close()
-
-
-@app.post("/tailor", status_code=202)
-def submit(t: Tailor):
-    rid = str(uuid.uuid4())
-    db.create_request(rid)
-    publish({"request_id": rid, **t.model_dump()})
-    return {"request_id": rid}
-
-
-@app.get("/applications/{rid}")
-def status(rid: str):
-    row = db.get_response(rid)
-    if not row:
-        raise HTTPException(404, "request not found")
-    return row
+app.add_middleware(TenantAuthMiddleware, tenant=TENANT_NAME)
+app.include_router(ingestion_router, prefix=f"/api/v1/{TENANT_NAME}")

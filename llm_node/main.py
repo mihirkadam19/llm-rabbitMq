@@ -18,7 +18,7 @@ logging.basicConfig(
     filemode='w'
 )
 
-QUEUE = "applications"
+QUEUE = os.environ.get("QUEUE", "applications")
 MODEL = os.environ.get("MODEL", "claude-sonnet-5-5")
 llm = anthropic.AsyncAnthropic()
 

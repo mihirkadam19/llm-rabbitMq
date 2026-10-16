@@ -1,4 +1,8 @@
 # compose.yaml
+volumes:
+  pgdata:
+  keycloakdata:
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -26,11 +30,20 @@ services:
     build:
       context: .
       dockerfile: ingestion/Dockerfile
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     ports:
       - "8000:8000"
+    volumes:
+      - ./ingestion:/app
+      - ./db:/app/db
     environment:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       DATABASE_URL: postgresql://app:app@postgres:5432/applier
+      OIDC_ISSUER: http://localhost:8080/realms/applier
+      OIDC_AUDIENCE: ingestion
+      OIDC_JWKS_URL: http://keycloak:8080/realms/applier/protocol/openid-connect/certs
+      TENANT_NAME: tenant_0
+      WATCHFILES_FORCE_POLLING: "true"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -45,8 +58,21 @@ services:
       RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
       DATABASE_URL: postgresql://app:app@postgres:5432/applier
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      QUEUE: tenant_0_queue
     depends_on:
       rabbitmq:
         condition: service_healthy
       postgres:
         condition: service_healthy
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.0
+    command: start-dev
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME: http://localhost:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - keycloakdata:/opt/keycloak/data
