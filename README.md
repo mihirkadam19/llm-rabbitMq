@@ -4,23 +4,7 @@ A backend that takes a job description and a resume and returns a tailored resum
 
 ## Architecture
 
-```
-   Client ──── login ────▶ Keycloak
-     │                        │ public keys
-     │ bearer token           ▼
-     ▼                ┌────────────────┐
-┌──────────────────┐  │                │      ┌─────────────┐
-│ Ingestion Service│ ───────────────────────▶ │  Postgres   │
-│ token and tenant │ ◀─────────────────────── │ job state   │
-│ check, stateless │                          │ checkpoints │
-└────────┬─────────┘                          └──────▲──────┘
-         │ publish job                               │ status, result, graph state
-         ▼                                           │
-   ┌───────────┐   consume    ┌───────────────┐      │      ┌──────────────┐
-   │ RabbitMQ  │ ───────────▶ │  LLM Worker   │ ─────┴────▶ │ LLM Provider │
-   └───────────┘              │ async, graph  │             └──────────────┘
-                              └───────────────┘
-```
+![System Architecture](architecture.png)
 
 Every piece runs as its own container and can be replaced or multiplied without touching the others.
 
